@@ -1,0 +1,29 @@
+{
+  "checkpoint": "/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed 1 weight decay 1e-04/steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/final_model.pth",
+  "gridness_threshold": 0.1,
+  "zero_shift_threshold": 0.5,
+  "shuffle_trials": 100,
+  "shuffle_alpha": 0.05,
+  "counts": {
+    "predictive": 251,
+    "retrospective": 476,
+    "zero_lag": 1556,
+    "low_grid": 2540,
+    "other": 0
+  },
+  "preferred_shift_mean_cm": {
+    "predictive": 0.26350597609561816,
+    "retrospective": -0.26042016806722673
+  },
+  "preferred_shift_median": {
+    "predictive": 0.2800000000000006,
+    "retrospective": -0.23999999999999988
+  },
+  "gridness_means": {
+    "predictive_zero": 0.2344881239424897,
+    "predictive_shift": 0.48050623481745275,
+    "retrospective_zero": 0.22422824739550848,
+    "retrospective_shift": 0.4826515351007719
+  },
+  "figure_path": "/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed 1 weight decay 1e-04/steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/analysis_outputs/spatial shift/predictive_retrospective/final_model.pth_straight_summary.png"
+}
