@@ -18,10 +18,13 @@ fig_save = False
 n_seeds = 10
 n_units = 4096 
 res = 20 
-trajectory_style = ['straight', 'random_walk']
-shift_mode = 'spatial'
+trajectory_style = ['random_walk', 'straight']
+shift_mode = 'temporal'
 n_styles = len(trajectory_style)
-shifts = np.arange(-20, 21, 1)
+if shift_mode == 'temporal':
+    shifts = np.arange(-20, 21, 1)
+else:
+    shifts = np.arange(-0.4, 0.4, 0.02)
 n_shifts = len(shifts)
 
 grid_units = np.zeros((n_seeds, n_units, n_styles))
@@ -39,7 +42,7 @@ for tt in range(n_styles):
         # Loading normal, predictive, and retrospective grid cell data
         grid_cell_analysis_path = '/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed ' + str(ss) + ' weight decay 1e-04/' + folder_name + '/analysis_outputs/' + shift_mode + ' shift/predictive_retrospective/'          
         X = np.load(grid_cell_analysis_path + 'final_model.pth_' + trajectory_style[tt] + '_summary_data.npz')
-        grid_scores[ss, :, tt] =  X['zero_scores']
+        grid_scores[ss, :, tt] =  X['scores_60'][np.abs(shifts) < 1e-06, :].flatten()
         max_shifted_grid_scores[ss, :, tt] = X['best_scores']
         optimal_shifts[ss, :, tt] = shifts[X['best_idx']]
         
@@ -70,7 +73,7 @@ plt.plot(['Predictive', 'Predictive'], [np.percentile(np.sum(predictive_units[:,
 plt.plot(['Retrospective', 'Retrospective'], [np.percentile(np.sum(predictive_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1)), 25), 
                             np.percentile(np.sum(predictive_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1)), 75)], 'r-')
 
-plt.ylim(0, 0.8)
+plt.ylim(0, 0.5)
 plt.ylabel('% classified')
 if fig_save: 
     plt.savefig(save_path + 'grid_predictive_retrospective_classification_percent.png')
@@ -145,7 +148,7 @@ if fig_save:
     plt.savefig(save_path + 'max_shifted_grid_score_vs_trajectory_style_predictive_grid_cell.png')
     plt.savefig(save_path + 'max_shifted_grid_score_vs_trajectory_style_predictive_grid_cell.svg', format = 'svg')
 
-print(scipy.stats.ks_2samp(median_max_shifted_grid_scores_predictive[:, 0], median_max_shifted_grid_scores_predictive[:, 1], alternative = 'less').pvalue)
+print(scipy.stats.ks_2samp(median_max_shifted_grid_scores_predictive[:, 0], median_max_shifted_grid_scores_predictive[:, 1], alternative = 'greater').pvalue)
 
 median_max_shifted_grid_scores_retrospective = np.zeros((n_seeds, n_styles))
 for nn in range(n_seeds):
@@ -162,15 +165,39 @@ if fig_save:
     plt.savefig(save_path + 'max_shifted_grid_score_vs_trajectory_style_retrospective_grid_cell.png')
     plt.savefig(save_path + 'max_shifted_grid_score_vs_trajectory_style_retrospective_grid_cell.svg', format = 'svg')
 
-print(scipy.stats.ks_2samp(median_max_shifted_grid_scores_retrospective[:, 0], median_max_shifted_grid_scores_retrospective[:, 1], alternative = 'less').pvalue)
+print(scipy.stats.ks_2samp(median_max_shifted_grid_scores_retrospective[:, 0], median_max_shifted_grid_scores_retrospective[:, 1], alternative = 'greater').pvalue)
 
 
+# Plotting average percent units for the different trajectories
+plt.figure(figsize = (6, 4))
+plt.plot(trajectory_style, [np.sum(predictive_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1)), 
+                            np.sum(predictive_units[:, :, 1], axis = 1) / (n_units - np.sum(dead_units[:, :, 1], axis = 1))], 'ko')
+plt.plot(trajectory_style, [np.median(np.sum(predictive_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1))), 
+                            np.median(np.sum(predictive_units[:, :, 1], axis = 1) / (n_units - np.sum(dead_units[:, :, 1], axis = 1)))], 'rs')
+plt.plot([trajectory_style[0], trajectory_style[0]], [np.percentile(np.sum(predictive_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1)), 25), 
+                            np.percentile(np.sum(predictive_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1)), 75)], 'r-')
+plt.plot([trajectory_style[1], trajectory_style[1]], [np.percentile(np.sum(predictive_units[:, :,1], axis = 1) / (n_units - np.sum(dead_units[:, :, 1], axis = 1)), 25), 
+                            np.percentile(np.sum(predictive_units[:, :, 1], axis = 1) / (n_units - np.sum(dead_units[:, :, 1], axis = 1)), 75)], 'r-')
+if fig_save: 
+    plt.savefig(save_path + 'percent_classified_vs_trajectory_style_predictive_grid_cell.png')
+    plt.savefig(save_path + 'percent_classified_vs_trajectory_style_predictive_grid_cell.svg', format = 'svg')
 
+print(scipy.stats.ks_2samp(np.sum(predictive_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1)), np.sum(predictive_units[:, :, 1], axis = 1) / (n_units - np.sum(dead_units[:, :, 1], axis = 1)), alternative = 'greater').pvalue)
 
+plt.figure(figsize = (6, 4))
+plt.plot(trajectory_style, [np.sum(retrospective_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1)), 
+                            np.sum(retrospective_units[:, :, 1], axis = 1) / (n_units - np.sum(dead_units[:, :, 1], axis = 1))], 'ko')
+plt.plot(trajectory_style, [np.median(np.sum(retrospective_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1))), 
+                            np.median(np.sum(retrospective_units[:, :, 1], axis = 1) / (n_units - np.sum(dead_units[:, :, 1], axis = 1)))], 'rs')
+plt.plot([trajectory_style[0], trajectory_style[0]], [np.percentile(np.sum(retrospective_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1)), 25), 
+                            np.percentile(np.sum(retrospective_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1)), 75)], 'r-')
+plt.plot([trajectory_style[1], trajectory_style[1]], [np.percentile(np.sum(retrospective_units[:, :,1], axis = 1) / (n_units - np.sum(dead_units[:, :, 1], axis = 1)), 25), 
+                            np.percentile(np.sum(retrospective_units[:, :, 1], axis = 1) / (n_units - np.sum(dead_units[:, :, 1], axis = 1)), 75)], 'r-')
+if fig_save: 
+    plt.savefig(save_path + 'percent_classified_vs_trajectory_style_retrospective_grid_cell.png')
+    plt.savefig(save_path + 'percent_classified_vs_trajectory_style_retrospective_grid_cell.svg', format = 'svg')
 
-
-
-
+print(scipy.stats.ks_2samp(np.sum(retrospective_units[:, :, 0], axis = 1) / (n_units - np.sum(dead_units[:, :, 0], axis = 1)), np.sum(retrospective_units[:, :, 1], axis = 1) / (n_units - np.sum(dead_units[:, :, 1], axis = 1)), alternative = 'greater').pvalue)
 
 
 

@@ -322,8 +322,8 @@ def summarize_checkpoint(args) -> Dict[str, float]:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--checkpoint_path", default = "/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed 9 weight decay 1e-04/steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/final_model.pth", help="Path to a trained model (.pth).") #"/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed 0 weight decay 1e-04/steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/final_model.pth", help="Path to a trained model (.pth).")  #'Straight/Seed 0 weight decay 1e-04/steps_20_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_straight/final_model.pth", help="Path to a trained model (.pth).")
-    parser.add_argument("--trajectory_style", default="straight")
+    parser.add_argument("--checkpoint_path", default = "/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed 0 weight decay 1e-04/steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/final_model.pth", help="Path to a trained model (.pth).") #"/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed 0 weight decay 1e-04/steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/final_model.pth", help="Path to a trained model (.pth).")  #'Straight/Seed 0 weight decay 1e-04/steps_20_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_straight/final_model.pth", help="Path to a trained model (.pth).")
+    parser.add_argument("--trajectory_style", default="random_walk")
     parser.add_argument("--out_dir", default=None, help="Optional directory override for outputs.")
     parser.add_argument("--batch_size", default=100, type=int)
     parser.add_argument("--sequence_length", default=40, type=int)
@@ -348,7 +348,7 @@ def main():
     parser.add_argument("--trajectory_dt", default=0.02, type = float)
     parser.add_argument("--gridness_threshold", default=0.1, type=float, help="Minimum gridness at the preferred shift.")
     parser.add_argument("--zero_shift_threshold", default=0.5, type=float, help="Minimum gridness at zero shift.")
-    parser.add_argument("--max_lag", default=0.4, type=int, help="Evaluate lags from -max_lag to +max_lag.")
+    parser.add_argument("--max_lag", default=20, type=int, help="Evaluate lags from -max_lag to +max_lag.")
     parser.add_argument("--shuffle_trials", default=100, type=int, help="Number of shuffle permutations (0 disables significance testing).")
     parser.add_argument("--shuffle_alpha", default=0.05, type=float, help="Tail probability for shuffle thresholds.")
     parser.add_argument("--shuffle_seed", default=0, type=int)

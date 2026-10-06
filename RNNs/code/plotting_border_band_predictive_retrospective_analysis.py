@@ -12,14 +12,14 @@ import matplotlib.pyplot as plt
 from visualize import rgb
 
 # Globals 
-fig_save = False
+fig_save = False 
 
 # Loading saved data
 n_seeds = 10
 n_units = 4096 
 res = 20 
 trajectory_style = 'random_walk'
-shift_mode = 'spatial'
+shift_mode = 'temporal'
 if shift_mode == 'temporal':
     shifts = np.arange(-20, 21, 1)
 else:
@@ -45,13 +45,13 @@ for ss in range(n_seeds):
     # Loading normal, predictive, and retrospective grid cell data
     grid_cell_analysis_path = '/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed ' + str(ss) + ' weight decay 1e-04/' + folder_name + '/analysis_outputs/' + shift_mode + ' shift/predictive_retrospective/'          
     X = np.load(grid_cell_analysis_path + 'final_model.pth_' + trajectory_style + '_summary_data.npz')
-    grid_scores[ss, :] =  X['zero_scores'].T
     max_shifted_grid_scores[ss, :] = X['best_scores']
     shifted_grid_scores[ss, :, :] = X['scores_60'].T
     best_shift_ids[ss, :] = X['best_idx']
     
     shifted_ratemaps = X['shifted_ratemap']
     shifts = X['lag']
+    grid_scores[ss, :] =  X['scores_60'][np.abs(shifts) < 1e-06, :].flatten()
     ratemaps[ss, :, :, :, :] = np.transpose(shifted_ratemaps, (3, 0, 1, 2))
     
     grid_ids = np.load(grid_cell_analysis_path + 'grid_ids_' + trajectory_style + '.npy')
@@ -106,7 +106,10 @@ for ss in range(n_seeds):
     band_units[ss, band_ids] = 1 
     band_units[ss, dead_units[ss, :] == 1] = 0
     
-   
+if fig_save: 
+    np.save(save_path + 'band_units.npy', band_units)
+    np.save(save_path + 'border_units.npy', border_units)
+    
 # Plotting all border and band cells
 plot_all_border = False
 seed_plot = 0
@@ -154,7 +157,7 @@ percent_border_predictive_overlap = np.sum(border_predictive_overlap, axis = 1) 
 percent_border_retrospective_overlap = np.sum(border_retrospective_overlap, axis = 1) / np.sum(border_units, axis = 1)
 
 # Plotting example overlapping border/band and predictive/retrospective cells
-n_plot = 2
+n_plot = 12
 seed_plot = 1
 border_predictive_ids = np.argwhere(border_predictive_overlap[seed_plot, :] == 1)
 border_predictive_ids = border_predictive_ids[np.argsort(border_scores[seed_plot, border_predictive_ids][:, 0])]
@@ -169,24 +172,28 @@ band_retrospective_ids = band_retrospective_ids[np.argsort(band_scores[seed_plot
 plt.figure(figsize = (12, 6))
 plt.suptitle('Example border-predictive cells')
 for ii in range(n_plot):
-    plt.subplot(2, n_plot, ii + 1) 
-    plt.imshow(rgb(ratemaps[seed_plot, border_predictive_ids[-ii], np.argwhere(np.abs(shifts) < 1e-6), :, :])[0][0])
-    plt.title('$\Delta$ = 0')
+    if ii < len(border_predictive_ids):
+        plt.subplot(2, n_plot, ii + 1) 
+        plt.imshow(rgb(ratemaps[seed_plot, border_predictive_ids[-ii], np.argwhere(np.abs(shifts) < 1e-6), :, :])[0][0])
+        plt.title('$\Delta$ = 0')
 for ii in range(n_plot):
-    plt.subplot(2, n_plot, ii + 1 + n_plot) 
-    plt.imshow(rgb(ratemaps[seed_plot, border_predictive_ids[-ii], int(best_shift_ids[seed_plot, border_predictive_ids[-ii]]),  :, :][0]))
-    plt.title('$\Delta$ = ' + str(shifts[int(best_shift_ids[seed_plot, border_predictive_ids[-ii]])]))
+    if ii < len(border_predictive_ids):
+        plt.subplot(2, n_plot, ii + 1 + n_plot) 
+        plt.imshow(rgb(ratemaps[seed_plot, border_predictive_ids[-ii], int(best_shift_ids[seed_plot, border_predictive_ids[-ii]]),  :, :][0]))
+        plt.title('$\Delta$ = ' + str(shifts[int(best_shift_ids[seed_plot, border_predictive_ids[-ii]])]))
     
 plt.figure(figsize = (8, 6))
 plt.suptitle('Example border-retrospective cells')
 for ii in range(n_plot):
-    plt.subplot(2, n_plot, ii + 1) 
-    plt.imshow(rgb(ratemaps[seed_plot, border_retrospective_ids[-ii], np.argwhere(np.abs(shifts) < 1e-6), :, :])[0][0])
-    plt.title('$\Delta$ = 0')
+    if ii < len(border_retrospective_ids):
+        plt.subplot(2, n_plot, ii + 1) 
+        plt.imshow(rgb(ratemaps[seed_plot, border_retrospective_ids[-ii], np.argwhere(np.abs(shifts) < 1e-6), :, :])[0][0])
+        plt.title('$\Delta$ = 0')
 for ii in range(n_plot):
-    plt.subplot(2, n_plot, ii + 1 + n_plot) 
-    plt.imshow(rgb(ratemaps[seed_plot, border_retrospective_ids[-ii], int(best_shift_ids[seed_plot, border_retrospective_ids[-ii]]),  :, :][0]))
-    plt.title('$\Delta$ = ' + str(shifts[int(best_shift_ids[seed_plot, border_retrospective_ids[-ii]])]))
+    if ii < len(border_retrospective_ids):
+        plt.subplot(2, n_plot, ii + 1 + n_plot) 
+        plt.imshow(rgb(ratemaps[seed_plot, border_retrospective_ids[-ii], int(best_shift_ids[seed_plot, border_retrospective_ids[-ii]]),  :, :][0]))
+        plt.title('$\Delta$ = ' + str(shifts[int(best_shift_ids[seed_plot, border_retrospective_ids[-ii]])]))
     
 plt.figure(figsize = (8, 6))
 plt.suptitle('Example band-predictive cells')
@@ -218,7 +225,6 @@ if fig_save:
     plt.savefig(save_path + 'Example_band_retrospective_units.svg', format = 'svg')
 plt.show()
 
-    
 # Plotting grid/predictive/retrospective and border/band overlaps
 grid_chance_overlap = np.sum(grid_units, axis = 1) / (n_units - np.sum(dead_units, axis = 1))
 plt.figure(figsize = (6, 4))
@@ -271,11 +277,11 @@ all_border_predictive_grid_increase = []
 median_border_retrospective_grid_increase = np.zeros(n_seeds)
 all_border_retrospective_grid_increase = []
 for ss in range(n_seeds):
-    max_predictive_grid_score = np.max(shifted_grid_scores[ss, border_units[ss, :] == 1, int(np.ceil(n_shifts / 2)):], axis = 1)
+    max_predictive_grid_score = np.max(shifted_grid_scores[ss, border_units[ss, :] == 1, np.argwhere(shifts > 0)], axis = 0)
     median_border_predictive_grid_increase[ss] = np.nanmedian((max_predictive_grid_score - grid_scores[ss, border_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, border_units[ss, :] == 1]))
     all_border_predictive_grid_increase.append((max_predictive_grid_score - grid_scores[ss, border_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, border_units[ss, :] == 1]))
     
-    max_retrospective_grid_score = np.max(shifted_grid_scores[ss, border_units[ss, :] == 1, :int(np.floor(n_shifts / 2))], axis = 1)
+    max_retrospective_grid_score = np.max(shifted_grid_scores[ss, border_units[ss, :] == 1, np.argwhere(shifts < 0)], axis = 0)
     median_border_retrospective_grid_increase[ss] = np.nanmedian((max_retrospective_grid_score - grid_scores[ss, border_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, border_units[ss, :] == 1]))
     all_border_retrospective_grid_increase.append((max_retrospective_grid_score - grid_scores[ss, border_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, border_units[ss, :] == 1]))
     
@@ -293,8 +299,8 @@ plt.show()
 print(scipy.stats.ks_2samp(median_border_predictive_grid_increase, median_border_retrospective_grid_increase, alternative = 'greater').pvalue)
 
 plt.figure(figsize = (6, 4))
-plt.hist(np.array(all_border_predictive_grid_increase).flatten(), bins = np.arange(-0.2, 1.2, 0.1), density = True, alpha = 0.5, label = 'Predictive')
-plt.hist(np.array(all_border_retrospective_grid_increase).flatten(), bins = np.arange(-0.2, 1.2, 0.1), density = True, alpha = 0.5, label = 'Retrospective')
+plt.hist(np.concatenate(all_border_predictive_grid_increase), bins = np.arange(-0.2, 1.2, 0.1), density = True, alpha = 0.5, label = 'Predictive')
+plt.hist(np.concatenate(all_border_retrospective_grid_increase), bins = np.arange(-0.2, 1.2, 0.1), density = True, alpha = 0.5, label = 'Retrospective')
 plt.legend()
 plt.xlabel('Relative grid increase')
 plt.title('Border units')
@@ -302,19 +308,26 @@ if fig_save:
     plt.savefig(save_path + 'Relative_grid_score_increase_all_border_cells.png')
     plt.savefig(save_path + 'Relative_grid_score_increase_all_border_cells.svg', format = 'svg')
 plt.show()
-print('% border cells with predictive rel grid increase > 0.1:' + str(np.sum(np.array(all_border_predictive_grid_increase) > 0.1) / np.sum(border_units)))
-print('% border cells with retrospective rel grid increase > 0.1:' + str(np.sum(np.array(all_border_retrospective_grid_increase) > 0.1) / np.sum(border_units)))
+print('% border cells with predictive rel grid increase > 0.1:' + str(np.sum(np.concatenate(all_border_predictive_grid_increase) > 0.1) / np.sum(border_units)))
+print('% border cells with retrospective rel grid increase > 0.1:' + str(np.sum(np.concatenate(all_border_retrospective_grid_increase) > 0.1) / np.sum(border_units)))
 
 median_band_predictive_grid_increase = np.zeros(n_seeds)
+median_band_non_grid_predictive_grid_increase = np.zeros(n_seeds)
 all_band_predictive_grid_increase = []
+all_band_band_scores = []
 median_band_retrospective_grid_increase = np.zeros(n_seeds)
 all_band_retrospective_grid_increase = []
 for ss in range(n_seeds):
-    max_predictive_grid_score = np.max(shifted_grid_scores[ss, band_units[ss, :] == 1, int(np.ceil(n_shifts / 2)):], axis = 1)
+    max_predictive_grid_score = np.max(shifted_grid_scores[ss, band_units[ss, :] == 1, np.argwhere(shifts > 0)], axis = 0)
     median_band_predictive_grid_increase[ss] = np.nanmedian((max_predictive_grid_score - grid_scores[ss, band_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, band_units[ss, :] == 1]))
     all_band_predictive_grid_increase.append((max_predictive_grid_score - grid_scores[ss, band_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, band_units[ss, :] == 1]))
+    
+    max_predictive_grid_score_non_grid = np.max(shifted_grid_scores[ss, (band_units[ss, :] == 1) & (grid_units[ss, :] == 0), int(np.ceil(n_shifts / 2)):], axis = 1)
+    median_band_non_grid_predictive_grid_increase[ss] = np.nanmedian((max_predictive_grid_score_non_grid - grid_scores[ss, (band_units[ss, :] == 1) & (grid_units[ss, :] == 0)]) / np.abs(grid_scores[ss, (band_units[ss, :] == 1) & (grid_units[ss, :] == 0)]))
 
-    max_retrospective_grid_score = np.max(shifted_grid_scores[ss, band_units[ss, :] == 1, :int(np.floor(n_shifts / 2))], axis = 1)
+    all_band_band_scores.append(band_scores[ss, band_units[ss, :] == 1])
+
+    max_retrospective_grid_score = np.max(shifted_grid_scores[ss, band_units[ss, :] == 1, np.argwhere(shifts < 0)], axis = 0)
     median_band_retrospective_grid_increase[ss] = np.nanmedian((max_retrospective_grid_score - grid_scores[ss, band_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, band_units[ss, :] == 1]))
     all_band_retrospective_grid_increase.append((max_retrospective_grid_score - grid_scores[ss, band_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, band_units[ss, :] == 1]))
 
@@ -332,8 +345,8 @@ plt.show()
 print(scipy.stats.ks_2samp(median_band_predictive_grid_increase, median_band_retrospective_grid_increase, alternative = 'less').pvalue)
 
 plt.figure(figsize = (6, 4))
-plt.hist(np.array(all_band_predictive_grid_increase).flatten(), bins = np.arange(-0.2, 1.2, 0.1), density = True, alpha = 0.5, label = 'Predictive')
-plt.hist(np.array(all_band_retrospective_grid_increase).flatten(), bins = np.arange(-0.2, 1.2, 0.1), density = True, alpha = 0.5, label = 'Retrospective')
+plt.hist(np.concatenate(all_band_predictive_grid_increase), bins = np.arange(-0.2, 1.2, 0.1), density = True, alpha = 0.5, label = 'Predictive')
+plt.hist(np.concatenate(all_band_retrospective_grid_increase), bins = np.arange(-0.2, 1.2, 0.1), density = True, alpha = 0.5, label = 'Retrospective')
 plt.legend()
 plt.xlabel('Relative grid increase')
 plt.title('Band units')
@@ -341,19 +354,19 @@ if fig_save:
     plt.savefig(save_path + 'Relative_grid_score_increase_all_band_cells.png')
     plt.savefig(save_path + 'Relative_grid_score_increase_all_band_cells.svg', format = 'svg')
 plt.show()
-print('% band cells with predictive rel grid increase > 0.1:' + str(np.sum(np.array(all_band_predictive_grid_increase) > 0.1) / np.sum(band_units)))
-print('% band cells with retrospective rel grid increase > 0.1:' + str(np.sum(np.array(all_band_retrospective_grid_increase) > 0.1) / np.sum(band_units)))
+print('% band cells with predictive rel grid increase > 0.1:' + str(np.sum(np.concatenate(all_band_predictive_grid_increase) > 0.1) / np.sum(band_units)))
+print('% band cells with retrospective rel grid increase > 0.1:' + str(np.sum(np.concatenate(all_band_retrospective_grid_increase) > 0.1) / np.sum(band_units)))
 
 median_grid_predictive_grid_increase = np.zeros(n_seeds)
 all_grid_predictive_grid_increase = []
 median_grid_retrospective_grid_increase = np.zeros(n_seeds)
 all_grid_retrospective_grid_increase = []
 for ss in range(n_seeds):
-    max_predictive_grid_score = np.max(shifted_grid_scores[ss, grid_units[ss, :] == 1, int(np.ceil(n_shifts / 2)):], axis = 1)
+    max_predictive_grid_score = np.max(shifted_grid_scores[ss, grid_units[ss, :] == 1, np.argwhere(shifts > 0)], axis = 0)
     median_grid_predictive_grid_increase[ss] = np.nanmedian((max_predictive_grid_score - grid_scores[ss, grid_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, grid_units[ss, :] == 1]))
     all_grid_predictive_grid_increase.append((max_predictive_grid_score - grid_scores[ss, grid_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, grid_units[ss, :] == 1]))
     
-    max_retrospective_grid_score = np.max(shifted_grid_scores[ss, grid_units[ss, :] == 1, :int(np.floor(n_shifts / 2))], axis = 1)
+    max_retrospective_grid_score = np.max(shifted_grid_scores[ss, grid_units[ss, :] == 1, np.argwhere(shifts < 0)], axis = 0)
     median_grid_retrospective_grid_increase[ss] = np.nanmedian((max_retrospective_grid_score - grid_scores[ss, grid_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, grid_units[ss, :] == 1]))
     all_grid_retrospective_grid_increase.append((max_retrospective_grid_score - grid_scores[ss, grid_units[ss, :] == 1 ]) / np.abs(grid_scores[ss, grid_units[ss, :] == 1]))
     
@@ -397,9 +410,15 @@ plt.show()
 print(scipy.stats.ks_2samp(median_band_predictive_grid_increase, median_grid_predictive_grid_increase, alternative = 'less').pvalue)
 print(scipy.stats.ks_2samp(median_band_retrospective_grid_increase, median_grid_retrospective_grid_increase, alternative = 'less').pvalue)
 
+all_band_predictive_grid_increase = np.concatenate(all_band_predictive_grid_increase)
+all_band_predictive_grid_increase[all_band_predictive_grid_increase > 1.0] = 1.1
+all_border_predictive_grid_increase = np.concatenate(all_border_predictive_grid_increase)
+all_border_predictive_grid_increase[all_border_predictive_grid_increase > 1.0] = 1.1
+all_grid_predictive_grid_increase = np.concatenate(all_grid_predictive_grid_increase)
+all_grid_predictive_grid_increase[all_grid_predictive_grid_increase > 1.0] = 1.1
 plt.figure(figsize = (6, 4))
-plt.hist(np.array(all_band_predictive_grid_increase).flatten(), bins = np.arange(-0.2, 1.2, 0.1), density = True, alpha = 0.5, label = 'Band')
-plt.hist(np.hstack(all_grid_predictive_grid_increase), bins = np.arange(-0.2, 1.2, 0.1), density = True, alpha = 0.5, label = 'Grid')
+plt.hist(all_band_predictive_grid_increase, bins = np.linspace(-0.2, 1.2, 8), density = True, alpha = 0.5, label = 'Band')
+plt.hist(all_grid_predictive_grid_increase, bins = np.linspace(-0.2, 1.2, 8), density = True, alpha = 0.5, label = 'Grid')
 plt.legend()
 plt.xlabel('Relative grid increase')
 if fig_save: 
@@ -408,9 +427,28 @@ if fig_save:
 plt.show()
 
 
+plt.figure(figsize = (6, 4))
+plt.hist(all_border_predictive_grid_increase, bins = np.linspace(-0.2, 1.2, 8), density = True, alpha = 0.5, label = 'Border')
+plt.hist(all_grid_predictive_grid_increase, bins = np.linspace(-0.2, 1.2, 8), density = True, alpha = 0.5, label = 'Grid')
+plt.legend()
+plt.xlabel('Relative grid increase')
+if fig_save: 
+    plt.savefig(save_path + 'Relative_grid_score_increase_all_grid_all_border.png')
+    plt.savefig(save_path + 'Relative_grid_score_increase_all_grid_all_border.svg', format = 'svg')
+plt.show()
 
 
+plt.figure(figsize = (6, 4))
+plt.hist(all_band_predictive_grid_increase, bins = np.linspace(-0.2, 1.2, 8), density = True, alpha = 0.5, label = 'Band')
+plt.hist(all_border_predictive_grid_increase, bins = np.linspace(-0.2, 1.2, 8), density = True, alpha = 0.5, label = 'Border')
+plt.legend()
+plt.xlabel('Relative grid increase')
+if fig_save: 
+    plt.savefig(save_path + 'Relative_grid_score_increase_all_band_all_border.png')
+    plt.savefig(save_path + 'Relative_grid_score_increase_all_band_all_border.svg', format = 'svg')
+plt.show()
 
+print(scipy.stats.ks_2samp(all_band_predictive_grid_increase, all_border_predictive_grid_increase, alternative = 'greater').pvalue)
                    
 
 

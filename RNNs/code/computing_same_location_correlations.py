@@ -31,7 +31,7 @@ parser.add_argument('--batch_size',
                     default=20000, # 20000
                     help='number of trajectories per batch') 
 parser.add_argument('--sequence_length',
-                    default=20,
+                    default=25,
                     help='number of steps in trajectory') #20
 parser.add_argument('--learning_rate',
                     default=1e-4,
@@ -132,10 +132,10 @@ n_seeds = 10
 n_units = options.Ng
 res = 44
 n_pairs = 20
-timestep = 15
+timestep = 20
 border_buffer = 0.2 # 0.2
 border_buffer_bins = int(np.ceil(border_buffer / (options.box_width / res)))
-shift_mode = 'spatial'
+shift_mode = 'temporal'
 
 folder_name = 'steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/'
 grid_correlations = np.zeros((n_seeds, res, res, n_pairs)) * np.nan
@@ -186,13 +186,13 @@ for ss in range(n_seeds):
             if n_pairs < scipy.special.comb(len(ids), 2):
                 for kk in range(n_pairs):
                     pair = np.random.randint(len(ids), size = (2))
-                    grid_correlations[ss, ii, jj, kk] = scipy.stats.pearsonr(g[ids[pair[0]], grid_ids], g[ids[pair[1]], grid_ids]).statistic
-                    predictive_grid_correlations[ss, ii, jj, kk] = scipy.stats.pearsonr(g[ids[pair[0]], predictive_ids], g[ids[pair[1]], predictive_ids]).statistic
+                    grid_correlations[ss, ii, jj, kk] = scipy.stats.pearsonr(g[ids[pair[0]], grid_ids], g[ids[pair[1]], grid_ids]).statistic[0]
+                    predictive_grid_correlations[ss, ii, jj, kk] = scipy.stats.pearsonr(g[ids[pair[0]], predictive_ids], g[ids[pair[1]], predictive_ids]).statistic[0]
                     movement_dist[ss, ii, jj, kk] = np.sqrt(np.sum((v[ids[pair[0]], :] - v[ids[pair[1]], :])**2))
                     
 # Plotting 
 save_path = '/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/results/grid_predictive_retrospective/' + shift_mode + ' shift/'
-fig_save = False
+fig_save = True
 
 X_grid = grid_correlations.flatten()
 X_grid = X_grid[~np.isnan(X_grid)]
@@ -207,16 +207,17 @@ grid_corr = grid_correlations.flatten()
 grid_corr = grid_corr[~np.isnan(grid_corr)]
 
 figure = plt.figure(figsize = (6, 4))
-plt.hist(X_grid, label='Grid', alpha = 0.3, bins = np.arange(0.6, 1.025, 0.025), density = True)
-plt.hist(X_pred_grid, label='Predictive grid', alpha = 0.3, bins = np.arange(0.6, 1.025, 0.025), density = True)         
+plt.hist(X_grid, label='Grid', alpha = 0.3, bins = np.arange(0.5, 1.025, 0.025), density = True)
+plt.hist(X_pred_grid, label='Predictive grid', alpha = 0.3, bins = np.arange(0.5, 1.025, 0.025), density = True)         
 plt.xlabel('Population correlation')
 plt.legend()
 if fig_save: 
-    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_distribution.png')
-    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_distribution.svg', format = 'svg')
+    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_distribution_' + str(timestep) + '.png')
+    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_distribution_' + str(timestep) + '.svg', format = 'svg')
 
 print(np.nanmedian(X_grid))
 print(np.nanmedian(X_pred_grid))
+print(scipy.stats.ks_2samp(X_grid, X_pred_grid, alternative = 'less').pvalue)
 
 figure = plt.figure(figsize = (8, 4))
 plt.subplot(1, 2, 1)
@@ -242,8 +243,8 @@ plt.xlabel('Euclidean distance')
 plt.ylabel('Correlation')
 plt.axis([0, 0.1, 0, 1.0])
 if fig_save: 
-    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_vs_movement_vector_dist.png')
-    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_vs_movement_vector_dist.svg', format = 'svg')
+    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_vs_movement_vector_dist_' + str(timestep) + '.png')
+    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_vs_movement_vector_dist_' + str(timestep) + '.svg', format = 'svg')
 
 movement_dist_bins = 5
 binned_movement_dist = np.percentile(movement_dist, [np.arange(0, 100 + movement_dist_bins, movement_dist_bins)])[0]
@@ -256,6 +257,9 @@ for ii in range(len(binned_movement_dist) - 1):
     bin_ids = np.argwhere((movement_dist > binned_movement_dist[ii]) & (movement_dist < binned_movement_dist[ii + 1]))
     median_binned_grid_correlation[ii] = np.nanmedian(grid_corr[bin_ids])   
     median_binned_predictive_grid_correlation[ii] = np.nanmedian(predictive_grid_corr[bin_ids])
+    
+    print(scipy.stats.ks_2samp(predictive_grid_corr[bin_ids], grid_corr[bin_ids], alternative = 'greater').pvalue)
+    
     if len(bin_ids) > 0:
         percentile_binned_predictive_grid_correlation[0, ii] = np.percentile(predictive_grid_corr[bin_ids], 25)
         percentile_binned_predictive_grid_correlation[1, ii] = np.percentile(predictive_grid_corr[bin_ids], 75)
@@ -269,10 +273,9 @@ for ii in range(len(binned_movement_dist) - 1):
     plt.plot([x[ii], x[ii]], percentile_binned_predictive_grid_correlation[:, ii], 'r-')
 plt.plot(x, median_binned_grid_correlation, 'ko', label ='Grid')
 plt.plot(x, median_binned_predictive_grid_correlation, 'ro', label ='Predictive grid')
-plt.axis([0.0, 0.09, 0.7, 1.0])
+plt.axis([0.0, 0.09, 0.5, 1.0])
 if fig_save: 
-    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_vs_movement_vector_dist_binned.png')
-    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_vs_movement_vector_dist_binned.svg', format = 'svg')
-
+    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_vs_movement_vector_dist_binned_' + str(timestep) + '.png')
+    plt.savefig(save_path + 'grid_predictive_grid_population_correlation_vs_movement_vector_dist_binned_' + str(timestep) + '.svg', format = 'svg')
 
 

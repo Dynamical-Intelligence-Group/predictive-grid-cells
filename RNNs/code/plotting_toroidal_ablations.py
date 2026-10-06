@@ -8,19 +8,15 @@ Created on Thu May  7 14:42:57 2026
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-import matplotlib
 
 import argparse
 from utils import generate_run_ID
 import random
 from tqdm import tqdm
-from visualize import compute_ratemaps
-from sklearn.decomposition import PCA
 import umap
-from scipy.spatial.distance import cdist, pdist, squareform
-from scipy.sparse import coo_matrix
-from umap.umap_ import compute_membership_strengths, smooth_knn_dist
-
+import matplotlib
+from sklearn.decomposition import PCA
+import scipy
 
 # Parameters necessary to evaluate network
 parser = argparse.ArgumentParser()
@@ -34,10 +30,10 @@ parser.add_argument('--n_steps',
                     default= 1,
                     help='batches per epoch') #1000
 parser.add_argument('--batch_size',
-                    default=20,
+                    default=100,
                     help='number of trajectories per batch') #200
 parser.add_argument('--sequence_length',
-                    default=20,
+                    default=40,
                     help='number of steps in trajectory') #20
 parser.add_argument('--learning_rate',
                     default=1e-4,
@@ -79,7 +75,7 @@ parser.add_argument('--device',
                     default='cpu',
                     help='device to use for training')
 parser.add_argument('--trajectory_style',
-                    default='random_walk',
+                    default='straight',
                     choices=['random_walk', 'straight', 'per_step_random'],
                     help='motion regime: smooth random walk (default), straight with fixed speed, or new random heading/speed each step')
 parser.add_argument('--trajectory_fixed_speed',
@@ -133,80 +129,264 @@ from trainer import Trainer
 place_cells = PlaceCells(options)
 trajectory_generator = TrajectoryGenerator(options, place_cells)
 
+def cos_sim(X, Y):
+    nX = np.linalg.norm(X, axis = 2)
+    nY = np.linalg.norm(Y, axis = 2)
+    
+    c = np.sum(X * Y, axis = 2) / (nX * nY)
+    
+    return c
+
 # Loading saved data
-seed_plot = 0
-n_units = options.Ng
+n_seeds = 10
+n_random_ablations = 1
+n_trajectories_plot = 1
+shift_mode = 'temporal'
+save_flag = False
+save_path = '/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/results/ablations/'
+
+band_cell_analysis_path = '/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/results/border_band/' + shift_mode + ' shift/'     
+band_units = np.load(band_cell_analysis_path + 'band_units.npy')
 
 folder_name = 'steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/'
 
-# Loading normal, predictive, and retrospective grid cell data
-grid_cell_analysis_path = '/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed ' + str(seed_plot) + ' weight decay 1e-04/' + folder_name + '/analysis_outputs/predictive_retrospective/'          
-X = np.load(grid_cell_analysis_path + 'final_model.pth_' + options.trajectory_style + '_summary_data.npz')
+base_grid_euclidean_dist_norm = np.zeros((n_seeds, options.batch_size, options.sequence_length))
+predictive_ablation_grid_euclidean_dist_norm = np.zeros((n_seeds, options.batch_size, options.sequence_length))
+band_ablation_grid_euclidean_dist_norm = np.zeros((n_seeds, options.batch_size, options.sequence_length))
+retrospective_ablation_grid_euclidean_dist_norm = np.zeros((n_seeds, options.batch_size, options.sequence_length))
+random_ablation_grid_euclidean_dist_norm = np.zeros((n_seeds, options.batch_size, options.sequence_length, n_random_ablations))
 
-grid_ids = np.load(grid_cell_analysis_path + 'grid_ids_' + options.trajectory_style + '.npy')
-predictive_ids = np.load(grid_cell_analysis_path + 'predictive_ids_' + options.trajectory_style + '.npy')
-retrospective_ids = np.load(grid_cell_analysis_path + 'retrospective_ids_' + options.trajectory_style + '.npy')
-dead_unit_ids = np.load(grid_cell_analysis_path + 'dead_unit_ids_' + options.trajectory_style + '.npy')
-non_dead_ids = np.arange(0, 4096, 1)[dead_unit_ids == False]
- 
-model_name = 'final_model.pth'
-model_path = '/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed ' + str(seed_plot) + ' weight decay 1e-04/' + folder_name
+base_grid_euclidean_dist_max = np.zeros((n_seeds, options.batch_size))
+predictive_ablation_grid_euclidean_dist_max = np.zeros((n_seeds, options.batch_size))
+band_ablation_grid_euclidean_dist_max = np.zeros((n_seeds, options.batch_size))
+retrospective_ablation_grid_euclidean_dist_max= np.zeros((n_seeds, options.batch_size))
+random_ablation_grid_euclidean_dist_max = np.zeros((n_seeds, options.batch_size, n_random_ablations))
 
-# Computing low-dimensional transformation in un-ablated network
-model = RNN(options, place_cells)
-model = model.to(options.device) 
-saved_model = torch.load(model_path + model_name, map_location=torch.device('cpu'))
- 
-res = 10
-model.load_state_dict(saved_model)
-traj_gen = TrajectoryGenerator(options, place_cells)
-place_cells = PlaceCells(options)
-rate_maps, _, g, _ = compute_ratemaps(model, traj_gen, options, res=res, t_start = 10)
-rate_maps_flattened = rate_maps.reshape((n_units, res**2))
-rate_maps_flattened = rate_maps_flattened[non_dead_ids, :].T
-g = g[:, grid_ids[:, 0]]
-#g = g[np.arange(0, np.shape(g)[0], 2), :]
 
-pca_fit = PCA(n_components = 6).fit(g)
-pca_result = pca_fit.transform(g)
-umap_fit = umap.UMAP(n_components = 3, min_dist = 0.8, n_neighbors = 5000, metric = "cosine")
-umap_result = umap_fit.fit_transform(pca_result)
+for ss in range(n_seeds):
+        print(ss)
+        # Loading normal, predictive, and retrospective grid units data
+        grid_cell_analysis_path = '/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed ' + str(ss) + ' weight decay 1e-04/' + folder_name + '/analysis_outputs/' + shift_mode + ' shift/predictive_retrospective/'          
+        X = np.load(grid_cell_analysis_path + 'final_model.pth_' + options.trajectory_style + '_summary_data.npz')
 
-# Plotting 
-def scatter3d(data, tags, ncols=2, nrows=2, s=1, alpha=0.5, azim_elev_title=True, edgecolor='none', **kwargs):
-    fig, axs = plt.subplots(ncols=ncols, nrows=nrows, subplot_kw={"projection": "3d"}, **kwargs)
-    num_plots = ncols * nrows
+        grid_ids = np.load(grid_cell_analysis_path + 'grid_ids_' + options.trajectory_style + '.npy')
+        predictive_ids = np.load(grid_cell_analysis_path + 'predictive_ids_' + options.trajectory_style + '.npy')
+        retrospective_ids = np.load(grid_cell_analysis_path + 'retrospective_ids_' + options.trajectory_style + '.npy')
+        dead_unit_ids = np.load(grid_cell_analysis_path + 'dead_unit_ids_' + options.trajectory_style + '.npy')
+        non_dead_ids = np.arange(0, 4096, 1)[dead_unit_ids == False]
+        non_grid_ids = np.setdiff1d(non_dead_ids, grid_ids)
+        
+        # Loading band units data
+        band_ids = np.argwhere(band_units[ss, :] == 1)
+        
+        # Setting up model
+        model_name = 'final_model.pth'
+        model_path = '/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed ' + str(ss) + ' weight decay 1e-04/' + folder_name
+        
+        # Base model
+        model = RNN(options, place_cells)
+        model = model.to(options.device)
+        saved_model = torch.load(model_path + model_name, map_location=torch.device('cpu'))
+                
+        model.load_state_dict(saved_model)
+
+        inputs, p, pc_outputs = trajectory_generator.get_test_batch()
+        g = model.g(inputs)
+        g = g.detach().numpy()  
+        
+        base_grid_activity = g[:, :, grid_ids]
+        X_base = base_grid_activity.reshape((-1, base_grid_activity.shape[-2]))
+        pca_fit = PCA(n_components = 6).fit(X_base)
+        pca_fit_2d = PCA(n_components = 2).fit(X_base)
+        pca_result = pca_fit.transform(X_base)
+        pca_result_2d = pca_fit_2d.transform(X_base)
+        print(np.sum(pca_fit_2d.explained_variance_))
+        
+        for bb in range(options.batch_size):
+            individual_trajectory = base_grid_activity[:, bb, :, 0]
+            starting_activity = np.repeat([individual_trajectory[0, :]], options.sequence_length, axis = 0)
+            d = np.sqrt(np.sum((individual_trajectory - starting_activity [0, :])**2, axis = 1)) 
+            base_grid_euclidean_dist_norm[ss, bb, :] = d / np.max(d)
+            base_grid_euclidean_dist_max[ss, bb] = np.max(d)
+        
+        # Ablating predictive grid cells
+        model = RNN(options, place_cells)
+        model = model.to(options.device)
+        saved_model = torch.load(model_path + model_name, map_location=torch.device('cpu'))
+        
+        ablation_ids = predictive_ids 
+
+        saved_model['encoder.weight'][ablation_ids, :] = 0  
+        saved_model['RNN.weight_ih_l0'][ablation_ids, :] = 0
+        saved_model['RNN.weight_hh_l0'][:, ablation_ids] = 0
+        saved_model['RNN.weight_hh_l0'][ablation_ids, :] = 0
+        saved_model['decoder.weight'][:, ablation_ids] = 0
     
-    azims = np.linspace(0, 180, ncols + 1)[:-1]
-    elevs = np.linspace(0, 90, nrows + 1)[:-1]
-    view_angles = np.stack(np.meshgrid(azims, elevs), axis=-1).reshape(-1, 2)
-    norm = matplotlib.colors.Normalize(np.amin(tags), np.amax(tags))
-    color = matplotlib.cm.viridis(norm(tags))
-    for i, ax in enumerate(axs.flat):
-        ax.scatter(xs=data[:, 0], ys=data[:, 1], zs=data[:, 2], color = color, s=s, alpha=alpha, edgecolor =edgecolor)
-        ax.azim = view_angles[i, 0]
-        ax.elev = view_angles[i, 1]
-        ax.axis("off")
-        if azim_elev_title:
-            ax.set_title(f"azim={ax.azim}, elev={ax.elev}")
-    return fig, axs
+        model.load_state_dict(saved_model)
 
-fig,axs = scatter3d(umap_result,pca_result[:, 0], nrows=2, ncols=2,azim_elev_title=False, 
-                        s = 0.1, alpha = 0.5, dpi=300, figsize = (1,1))
-fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace = 0.0, hspace = 0.0)
+        #inputs, p, pc_outputs = trajectory_generator.get_test_batch()
+        g = model.g(inputs)
+        g = g.detach().numpy()     
+                
+        predictive_ablation_grid_activity = g[:, :, grid_ids]
+        
+        for bb in range(options.batch_size):
+            individual_trajectory = predictive_ablation_grid_activity[:, bb, :, 0]
+            starting_activity = np.repeat([individual_trajectory[0, :]], options.sequence_length, axis = 0)
+            d = np.sqrt(np.sum((individual_trajectory - starting_activity [0, :])**2, axis = 1)) 
+            predictive_ablation_grid_euclidean_dist_norm[ss, bb, :] = d / np.max(d)
+            predictive_ablation_grid_euclidean_dist_max[ss, bb] = np.max(d)
 
+        plt.figure(figsize = (4 * n_trajectories_plot, 4))
+        for ii in range(n_trajectories_plot):
+            pca_result_2d_trajectory = pca_fit_2d.transform(base_grid_activity[:, ii, :, 0])
+            predictive_ablation_pca_result_2d = pca_fit_2d.transform(predictive_ablation_grid_activity[:, ii, :, 0])
+            
+            plt.subplot(1, n_trajectories_plot, ii + 1)
+            plt.plot(pca_result_2d[:, 0], pca_result_2d[:, 1], 'ko', alpha = 0.3)
+            plt.plot(pca_result_2d_trajectory[:, 0], pca_result_2d_trajectory[:, 1], 'wo-', label = 'base')
+            plt.plot(predictive_ablation_pca_result_2d[:, 0], predictive_ablation_pca_result_2d[:, 1], 'go-', label = 'predictive ablation')
+            plt.legend()
+        plt.suptitle('Seed: ' + str(ss))
+            
+        if save_flag: 
+            plt.savefig(save_path + 'predictive_ablations_seed_' + str(ss) + '.png')
+            plt.savefig(save_path + 'predictive_ablations_seed_' + str(ss) + '.svg', format = 'svg')
 
+        # Ablating band cells
+        model = RNN(options, place_cells)
+        model = model.to(options.device)
+        saved_model = torch.load(model_path + model_name, map_location=torch.device('cpu'))
+         
+        ablation_ids = np.setdiff1d(band_ids, grid_ids)
 
+        saved_model['encoder.weight'][ablation_ids, :] = 0  
+        saved_model['RNN.weight_ih_l0'][ablation_ids, :] = 0
+        saved_model['RNN.weight_hh_l0'][:, ablation_ids] = 0
+        saved_model['RNN.weight_hh_l0'][ablation_ids, :] = 0
+        saved_model['decoder.weight'][:, ablation_ids] = 0
+     
+        model.load_state_dict(saved_model)
 
+        #inputs, p, pc_outputs = trajectory_generator.get_test_batch()
+        g = model.g(inputs)
+        g = g.detach().numpy()     
+        
+        band_ablation_grid_activity = g[:, :, grid_ids]
+        
+        for bb in range(options.batch_size):
+           individual_trajectory = band_ablation_grid_activity[:, bb, :, 0]
+           starting_activity = np.repeat([individual_trajectory[0, :]], options.sequence_length, axis = 0)
+           d = np.sqrt(np.sum((individual_trajectory - starting_activity [0, :])**2, axis = 1)) 
+           band_ablation_grid_euclidean_dist_norm[ss, bb, :] = d / np.max(d)
+           band_ablation_grid_euclidean_dist_max[ss, bb] = np.max(d)
+            
+        fig = plt.figure(figsize = (4 * n_trajectories_plot, 4))
+        for ii in range(n_trajectories_plot):
+            pca_result_2d_trajectory = pca_fit_2d.transform(base_grid_activity[:, ii, :, 0])
+            band_ablation_pca_result_2d = pca_fit_2d.transform(band_ablation_grid_activity[:, ii, :, 0])
+            
+            plt.subplot(1, n_trajectories_plot, ii + 1)
+            plt.plot(pca_result_2d[:, 0], pca_result_2d[:, 1], 'ko', alpha = 0.3)
+            plt.plot(pca_result_2d_trajectory[:, 0], pca_result_2d_trajectory[:, 1], 'wo-', label = 'base')
+            plt.plot(band_ablation_pca_result_2d[:, 0], band_ablation_pca_result_2d[:, 1], 'yo-', label = 'band ablation')
+            plt.legend()
+        plt.suptitle('Seed: ' + str(ss))
+            
+        if save_flag: 
+            plt.savefig(save_path + 'band_ablations_seed_' + str(ss) + '.png')
+            plt.savefig(save_path + 'band_ablations_seed_' + str(ss) + '.svg', format = 'svg')
 
+        # Ablating retrospective grid cells
+        model = RNN(options, place_cells)
+        model = model.to(options.device)
+        saved_model = torch.load(model_path + model_name, map_location=torch.device('cpu'))
+            
+        ablation_ids = retrospective_ids
+        saved_model['encoder.weight'][ablation_ids, :] = 0  
+        saved_model['RNN.weight_ih_l0'][ablation_ids, :] = 0
+        saved_model['RNN.weight_hh_l0'][:, ablation_ids] = 0
+        saved_model['RNN.weight_hh_l0'][ablation_ids, :] = 0
+        saved_model['decoder.weight'][:, ablation_ids] = 0
+                    
+        model.load_state_dict(saved_model)
 
+        #inputs, p, pc_outputs = trajectory_generator.get_test_batch()
+        g = model.g(inputs)
+        g = g.detach().numpy()   
+        
+        retrospective_ablation_grid_activity = g[:, :, grid_ids]
+        
+        for bb in range(options.batch_size):
+            individual_trajectory = retrospective_ablation_grid_activity[:, bb, :, 0]
+            starting_activity = np.repeat([individual_trajectory[0, :]], options.sequence_length, axis = 0)
+            d = np.sqrt(np.sum((individual_trajectory - starting_activity [0, :])**2, axis = 1)) 
+            retrospective_ablation_grid_euclidean_dist_norm[ss, bb, :] = d / np.max(d)
+            retrospective_ablation_grid_euclidean_dist_max[ss, bb] = np.max(d)
+            
+        plt.figure(figsize = (4 * n_trajectories_plot, 4))
+        for ii in range(n_trajectories_plot):
+            pca_result_2d_trajectory = pca_fit_2d.transform(base_grid_activity[:, ii, :, 0])
+            retrospective_ablation_pca_result_2d = pca_fit_2d.transform(retrospective_ablation_grid_activity[:, ii, :, 0])
+            
+            plt.subplot(1, n_trajectories_plot, ii + 1)
+            plt.plot(pca_result_2d[:, 0], pca_result_2d[:, 1], 'ko', alpha = 0.3)
+            plt.plot(pca_result_2d_trajectory[:, 0], pca_result_2d_trajectory[:, 1], 'wo-', label = 'base')
+            plt.plot(retrospective_ablation_pca_result_2d[:, 0], retrospective_ablation_pca_result_2d[:, 1], 'ro-', label = 'retrospective ablation')
+            plt.legend()
+        plt.suptitle('Seed: ' + str(ss))
+                       
+        if save_flag: 
+            plt.savefig(save_path + 'retrospective_ablations_seed_' + str(ss) + '.png')
+            plt.savefig(save_path + 'retrospective_ablations_seed_' + str(ss) + '.svg', format = 'svg')
+      
+        # Ablating random units 
+        for aa in range(n_random_ablations):
+           model = RNN(options, place_cells)
+           model = model.to(options.device)
+           saved_model = torch.load(model_path + model_name,  map_location=torch.device('cpu'))
 
+           np.random.shuffle(non_grid_ids)
+           ablation_ids = non_grid_ids[:int(len(predictive_ids))]
 
+           saved_model['encoder.weight'][ablation_ids, :] = 0  
+           saved_model['RNN.weight_ih_l0'][ablation_ids, :] = 0
+           saved_model['RNN.weight_hh_l0'][:, ablation_ids] = 0
+           saved_model['RNN.weight_hh_l0'][ablation_ids, :] = 0
+           saved_model['decoder.weight'][:, ablation_ids] = 0
+                  
+           model.load_state_dict(saved_model)
 
+           #inputs, p, pc_outputs = trajectory_generator.get_test_batch()
+           g = model.g(inputs)
+           g = g.detach().numpy()  
+                  
+           random_ablation_grid_activity = g[:, :, grid_ids]
+           
+           for bb in range(options.batch_size):
+               individual_trajectory = random_ablation_grid_activity[:, bb, :, 0]
+               starting_activity = np.repeat([individual_trajectory[0, :]], options.sequence_length, axis = 0)
+               d = np.sqrt(np.sum((individual_trajectory - starting_activity [0, :])**2, axis = 1)) 
+               random_ablation_grid_euclidean_dist_norm[ss, bb, :, aa] = d / np.max(d)
+               random_ablation_grid_euclidean_dist_max[ss, bb, aa] = np.max(d)
+      
+# Plotting
+plt.figure(figsize = (6, 4))
+plt.fill_between(np.arange(0, options.sequence_length, 1), np.percentile(np.mean(base_grid_euclidean_dist_norm, axis = 1), 25, axis = 0), np.percentile(np.mean(base_grid_euclidean_dist_norm, axis = 1), 75, axis = 0), color = 'k', alpha = 0.5)
+plt.plot(np.arange(0, options.sequence_length), np.median(np.mean(base_grid_euclidean_dist_norm, axis = 1), axis = 0), 'k-', label = 'Base')
+plt.fill_between(np.arange(0, options.sequence_length, 1), np.percentile(np.mean(predictive_ablation_grid_euclidean_dist_norm, axis = 1), 25, axis = 0), np.percentile(np.mean(predictive_ablation_grid_euclidean_dist_norm, axis = 1), 75, axis = 0), color = 'g', alpha = 0.5)
+plt.plot(np.arange(0, options.sequence_length), np.median(np.mean(predictive_ablation_grid_euclidean_dist_norm, axis = 1), axis = 0), 'g-', label = 'Predictive')
+plt.fill_between(np.arange(0, options.sequence_length, 1), np.percentile(np.mean(retrospective_ablation_grid_euclidean_dist_norm, axis = 1), 25, axis = 0), np.percentile(np.mean(retrospective_ablation_grid_euclidean_dist_norm, axis = 1), 75, axis = 0), color = 'r', alpha = 0.5)
+plt.plot(np.arange(0, options.sequence_length), np.median(np.mean(retrospective_ablation_grid_euclidean_dist_norm, axis = 1), axis = 0), 'r-', label = 'Retrospective')
+plt.fill_between(np.arange(0, options.sequence_length, 1), np.percentile(np.mean(band_ablation_grid_euclidean_dist_norm, axis = 1), 25, axis = 0), np.percentile(np.mean(band_ablation_grid_euclidean_dist_norm, axis = 1), 75, axis = 0), color = 'y', alpha = 0.5)
+plt.plot(np.arange(0, options.sequence_length), np.median(np.mean(band_ablation_grid_euclidean_dist_norm, axis = 1), axis = 0), 'y-', label = 'Band')
+plt.fill_between(np.arange(0, options.sequence_length, 1), np.percentile(np.mean(np.mean(random_ablation_grid_euclidean_dist_norm, axis = 1), axis = 2), 25, axis = 0), np.percentile(np.mean(np.mean(random_ablation_grid_euclidean_dist_norm, axis = 1), axis = 2), 75, axis = 0), color = 'b', alpha = 0.5)
+plt.plot(np.arange(0, options.sequence_length), np.median(np.mean(np.mean(random_ablation_grid_euclidean_dist_norm, axis = 1), axis = 2), axis = 0), 'b-', label = 'Random')
+#plt.axis([35, 41, 0.75,0.95])
 
-
-
-
+plt.figure(figsize = (6, 4))
+plt.boxplot([np.mean(base_grid_euclidean_dist_max, axis = 1), np.mean(predictive_ablation_grid_euclidean_dist_max, axis = 1), np.mean(retrospective_ablation_grid_euclidean_dist_max, axis = 1), np.mean(band_ablation_grid_euclidean_dist_max, axis = 1), np.mean(np.mean(random_ablation_grid_euclidean_dist_max, axis = 2), axis = 1)], tick_labels = ['base', 'predictive', 'retrospective', 'band', 'random'] )
+print(scipy.stats.ks_2samp(np.mean(np.mean(random_ablation_grid_euclidean_dist_max, axis = 2), axis = 1), np.mean(predictive_ablation_grid_euclidean_dist_max, axis = 1), alternative = 'greater').pvalue)
 
 
 

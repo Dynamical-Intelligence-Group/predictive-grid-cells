@@ -117,12 +117,13 @@ def analyse_checkpoint(ckpt_path: str, args) -> Dict[str, float]:
         traj_gen,
         options,
         res=args.res,
-        n_avg=args.n_avg,
         Ng=Ng_eval,
         idxs=idxs,
     )
     band_vals, band_kx, band_ky = band_scores(activations, args.res, options.box_width,
                                               k_values=np.arange(args.band_k_min, args.band_k_max + 1e-6, args.band_k_step))
+
+
 
     border_vals = np.zeros((Ng_eval,), dtype=np.float32)
     for i in range(Ng_eval):
@@ -171,7 +172,7 @@ def analyse_checkpoint(ckpt_path: str, args) -> Dict[str, float]:
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--checkpoint_paths", default = ["/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed 9 weight decay 1e-04/steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/final_model.pth"], help="Path to a trained model (.pth).")  #'Straight/Seed 0 weight decay 1e-04/steps_20_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_straight/final_model.pth", help="Path to a trained model (.pth).")
+    parser.add_argument("--checkpoint_paths", default = ["/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed 0 weight decay 1e-04/steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/final_model.pth"], help="Path to a trained model (.pth).")  #'Straight/Seed 0 weight decay 1e-04/steps_20_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_straight/final_model.pth", help="Path to a trained model (.pth).")
     parser.add_argument("--trajectory_style", default="random_walk")
     
     parser.add_argument("--batch_size", default=100, type=int)
@@ -184,7 +185,6 @@ def parse_args():
     parser.add_argument("--box_height", type=float, default=2.2)
     parser.add_argument("--learning_rate", type=float, default=1e-4)
     parser.add_argument("--res", type=int, default=20)
-    parser.add_argument("--n_avg", default=None, type=int)
     parser.add_argument("--n_batches", default=10, type=int)
     parser.add_argument("--Ng_use", type=int, default=4096)
     parser.add_argument("--band_percentile", type=float, default=90.0)

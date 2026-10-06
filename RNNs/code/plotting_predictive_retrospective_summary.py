@@ -11,32 +11,32 @@ import matplotlib.pyplot as plt
 from visualize import rgb
 
 # Globals 
-classifications_save = True
-fig_save = True
+classifications_save = False
+fig_save = False
 
 # Loading saved grid cell properties 
 trajectory_style = 'random_walk'
-shift_mode = 'spatial'
+shift_mode = 'temporal'
 folder_name = 'steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/analysis_outputs/' + shift_mode + ' shift/predictive_retrospective/'  #'steps_40_batch_200_Ng_4096_relu_lr_00001_weight_decay_00001_shape_22x22_straightness_10_trajectory_style_random_walk/analysis_outputs/predictive_retrospective/'
 seed = 0
 data_path = '/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed ' + str(seed) + ' weight decay 1e-04/' + folder_name  #'/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/models/random_walk/Seed ' + str(seed) + ' weight decay 1e-04/' + folder_name
 X = np.load(data_path + 'final_model.pth_' + trajectory_style + '_summary_data.npz')
 shifted_ratemaps = X['shifted_ratemap']
 shifted_sac = X['shifted_sac']
-grid_scores = X['zero_scores']
 grid_scores_shift = X['scores_60']
 max_scores = X['best_scores']
 optimal_shifts = X['best_shift']
 thresholds = X['shuffle_thresholds']
 shifts = X['lag']
+grid_scores = grid_scores_shift[np.abs(shifts) < 1e-06, :].flatten()
 
 n_units= np.shape(grid_scores_shift)[1]
 
 # Classifying units 
 grid_cell_thresh = 0.3
-max_grid_score_min = 0.1
+max_grid_score_min = 0.3
 
-grid_ids = np.argwhere((grid_scores > grid_cell_thresh))
+grid_ids = np.argwhere((grid_scores > grid_cell_thresh) & (grid_scores > thresholds))
 non_grid_units = grid_scores < grid_cell_thresh 
 predictive_units = optimal_shifts > 0 
 retrospective_units = optimal_shifts < 0 
@@ -320,15 +320,15 @@ if fig_save:
 
 # Plotting example predictive grid cell 
 predictive_cell_plot_percentile = 99
-predictive_cell_plot_id = predictive_ids[np.argmin(np.abs(gs_rel_inc_predictive - np.percentile(gs_rel_inc_predictive, predictive_cell_plot_percentile)))]
+predictive_cell_plot_id = 1081 #predictive_ids[np.argmin(np.abs(gs_rel_inc_predictive - np.percentile(gs_rel_inc_predictive, predictive_cell_plot_percentile)))]
 
 plt.figure(figsize = (6, 4))
 plt.plot(shifts, grid_scores_shift[:, predictive_cell_plot_id], 'k-')
 plt.xlabel('$\Delta$')
 plt.ylabel('GS')
 if fig_save: 
-    plt.savefig(data_path + 'example_predictive_grid_unit_score_vs_shift_' + trajectory_style + '.png')
-    plt.savefig(data_path + 'example_predictive_grid_unit_score_vs_shift_' + trajectory_style + '.svg', format = 'svg')
+    plt.savefig(data_path + 'example_predictive_grid_unit_' + str(predictive_cell_plot_id) + '_score_vs_shift_' + trajectory_style + '.png')
+    plt.savefig(data_path + 'example_predictive_grid_unit_' + str(predictive_cell_plot_id) + '_score_vs_shift_' + trajectory_style + '.svg', format = 'svg')
 
 if shift_mode == 'temporal':
     plt.figure(figsize = (6, 4))
@@ -372,20 +372,20 @@ else:
     plt.title('D = +' + str(optimal_shifts[predictive_cell_plot_id]))
 
 if fig_save: 
-    plt.savefig(data_path + 'example_predictive_grid_unit_' + trajectory_style + '.png')
-    plt.savefig(data_path + 'example_predictive_grid_unit_' + trajectory_style + '.svg', format = 'svg')
+    plt.savefig(data_path + 'example_predictive_grid_unit_' + str(predictive_cell_plot_id) + '_' + trajectory_style + '.png')
+    plt.savefig(data_path + 'example_predictive_grid_unit_' + str(predictive_cell_plot_id) + '_' + trajectory_style + '.svg', format = 'svg')
 
 # Plotting example retrospective grid cell 
 retrospective_cell_plot_percentile = 99
-retrospective_cell_plot_id = retrospective_ids[np.argmin(np.abs(gs_rel_inc_retrospective - np.percentile(gs_rel_inc_retrospective, retrospective_cell_plot_percentile)))]
+retrospective_cell_plot_id = 2401 #retrospective_ids[np.argmin(np.abs(gs_rel_inc_retrospective - np.percentile(gs_rel_inc_retrospective, retrospective_cell_plot_percentile)))]
 
 plt.figure(figsize = (6, 4))
 plt.plot(shifts, grid_scores_shift[:, retrospective_cell_plot_id], 'k-')
 plt.xlabel('$\Delta$')
 plt.ylabel('GS')
 if fig_save: 
-    plt.savefig(data_path + 'example_retrospective_grid_unit_score_vs_shift_' + trajectory_style + '.png')
-    plt.savefig(data_path + 'example_retrospective_grid_unit_score_vs_shift_' + trajectory_style + '.svg', format = 'svg')
+    plt.savefig(data_path + 'example_retrospective_grid_unit_' + str(retrospective_cell_plot_id) + '_score_vs_shift_' + trajectory_style + '.png')
+    plt.savefig(data_path + 'example_retrospective_grid_unit_' + str(retrospective_cell_plot_id) + '_score_vs_shift_' + trajectory_style + '.svg', format = 'svg')
 
 if shift_mode == 'temporal':
     plt.figure(figsize = (6, 4))
@@ -429,8 +429,8 @@ else:
     plt.title('D = 0')
 
 if fig_save: 
-    plt.savefig(data_path + 'example_retrospective_grid_unit_' + trajectory_style + '.png')
-    plt.savefig(data_path + 'example_retrospective_grid_unit_' + trajectory_style +'.svg', format = 'svg')
+    plt.savefig(data_path + 'example_retrospective_grid_unit_' + str(retrospective_cell_plot_id) + '_' + trajectory_style + '.png')
+    plt.savefig(data_path + 'example_retrospective_grid_unit_' + str(retrospective_cell_plot_id) + '_' + trajectory_style +'.svg', format = 'svg')
 
 
 # Plotting all predictive cells 

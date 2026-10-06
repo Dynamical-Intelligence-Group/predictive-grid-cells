@@ -343,8 +343,8 @@ class GridScorer(object):
       y_path = ys.copy()
 
     # how much the position is changing between neighboring timesteps
-    dx = np.gradient(x_path, axis=0)
-    dy = np.gradient(y_path, axis=0)
+    dx = np.diff(x_path, append = [x_path[-1, :].T], axis=0) #np.gradient(x_path, axis=0)
+    dy = np.diff(y_path, append = [y_path[-1, :].T], axis=0) #np.gradient(y_path, axis=0)
 
     # normalize dx and dy to the unit length
     norm = np.sqrt(dx**2 + dy**2) # find magnitude of vector
@@ -404,7 +404,6 @@ class GridScorer(object):
       x_base = xs.copy()
       y_base = ys.copy()
 
-  
     # get the normalized heading unit vectors at each time step
     ux, uy = self._estimate_heading_unit_vectors(xs, ys, periodic=periodic)
 

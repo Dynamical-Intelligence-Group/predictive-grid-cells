@@ -138,7 +138,7 @@ def compute_ratemaps(model, trajectory_generator, options, res=20, n_avg=None, N
     pos = pos.reshape([-1, 2])
 
     # # scipy binned_statistic_2d is slightly slower
-    # activations = scipy.stats.binned_statistic_2d(pos[:,0], pos[:,1], g.T, bins=res)[0]
+    activations = scipy.stats.binned_statistic_2d(pos[:,0], pos[:,1], g.T, bins=res)[0]
     rate_map = activations.reshape(Ng, -1)
 
     return activations, rate_map, g, pos

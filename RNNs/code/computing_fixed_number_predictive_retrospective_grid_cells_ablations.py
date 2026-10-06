@@ -72,7 +72,7 @@ parser.add_argument('--device',
                     default='cpu',
                     help='device to use for training')
 parser.add_argument('--trajectory_style',
-                    default='random_walk',
+                    default='straight',
                     choices=['random_walk', 'straight', 'per_step_random'],
                     help='motion regime: smooth random walk (default), straight with fixed speed, or new random heading/speed each step')
 parser.add_argument('--trajectory_fixed_speed',
@@ -127,11 +127,11 @@ place_cells = PlaceCells(options)
 trajectory_generator = TrajectoryGenerator(options, place_cells)
 
 # Loading saved data
-n_seeds = 1
+n_seeds = 10
 n_units = options.Ng
 ablation_sizes = [30, 60, 90, 120, 150]
 n_sizes = len(ablation_sizes)
-n_ablations = 2
+n_ablations = 20
 shift_mode = 'temporal'
 
 predictive_ablation_decoding_error = np.zeros((n_seeds, n_sizes, n_ablations))
@@ -170,8 +170,11 @@ for ss in range(n_seeds):
                 np.random.shuffle(predictive_ids)
                 ablation_ids = predictive_ids[:int(ablation_sizes[nn])]
 
+                saved_model['encoder.weight'][ablation_ids, :] = 0  
+                saved_model['RNN.weight_ih_l0'][ablation_ids, :] = 0
                 saved_model['RNN.weight_hh_l0'][:, ablation_ids] = 0
                 saved_model['RNN.weight_hh_l0'][ablation_ids, :] = 0
+                saved_model['decoder.weight'][:, ablation_ids] = 0
                 
                 model.load_state_dict(saved_model)
 
@@ -197,8 +200,11 @@ for ss in range(n_seeds):
                     else:
                         ablation_ids = retrospective_ids[:int(ablation_sizes[nn])]
                     
+                    saved_model['encoder.weight'][ablation_ids, :] = 0  
+                    saved_model['RNN.weight_ih_l0'][ablation_ids, :] = 0
                     saved_model['RNN.weight_hh_l0'][:, ablation_ids] = 0
                     saved_model['RNN.weight_hh_l0'][ablation_ids, :] = 0
+                    saved_model['decoder.weight'][:, ablation_ids] = 0
                     
                     model.load_state_dict(saved_model)
 
@@ -224,8 +230,11 @@ for ss in range(n_seeds):
                  else:
                      ablation_ids = grid_ids[:int(ablation_sizes[nn])]
                  
+                 saved_model['encoder.weight'][ablation_ids, :] = 0  
+                 saved_model['RNN.weight_ih_l0'][ablation_ids, :] = 0
                  saved_model['RNN.weight_hh_l0'][:, ablation_ids] = 0
                  saved_model['RNN.weight_hh_l0'][ablation_ids, :] = 0
+                 saved_model['decoder.weight'][:, ablation_ids] = 0
                  
                  model.load_state_dict(saved_model)
 
@@ -249,8 +258,11 @@ for ss in range(n_seeds):
                  np.random.shuffle(non_dead_ids)
                  ablation_ids = non_dead_ids[:int(ablation_sizes[nn])]
 
+                 saved_model['encoder.weight'][ablation_ids, :] = 0  
+                 saved_model['RNN.weight_ih_l0'][ablation_ids, :] = 0
                  saved_model['RNN.weight_hh_l0'][:, ablation_ids] = 0
                  saved_model['RNN.weight_hh_l0'][ablation_ids, :] = 0
+                 saved_model['decoder.weight'][:, ablation_ids] = 0
                    
                  model.load_state_dict(saved_model)
 

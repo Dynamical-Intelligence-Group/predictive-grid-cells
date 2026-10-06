@@ -17,7 +17,7 @@ if ablation_type == 'ablations_fixed_number':
 else:
     x = [0.1, 0.2, 0.3, 0.4, 0.5]
 
-shift_mode = 'spatial'
+shift_mode = 'temporal'
 
 # Loading data data
 data_path = '/Users/wredman/Documents/GitHub/predictive-grid-cells/RNNs/results/' + ablation_type + '/' + shift_mode + ' shift/'
